@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Aero-Dock: Trajectory Estimator</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    /* Viewport Reset for direct browser preview */
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #030712;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+  </style>
+  <script>
+    // MOCK PLATFORM RUNTIME (For local testing & standalone preview)
+    if (typeof window.root === 'undefined') {
+      window.root = document;
+    }
+    if (typeof window.game === 'undefined') {
+      window.game = {
+        config: { maxPoints: 100 },
+        end: function (result) {
+          console.log("Game Ended with payload:", result);
+          alert("Mission Complete!\nScore: " + result.score + "\nStars: " + result.stars + "\nSuccess: " + result.success);
+        }
+      };
+    }
+  </script>
+</head>
+<body>
+
+<div class="game-wrapper" id="game-wrapper">
+
+  <!-- TOP APP NAVIGATION BAR -->
+  <header class="top-nav-bar" id="top-nav-bar">
+    <div class="nav-brand">
+      <span class="brand-badge">Cambridge Maths • Year 4 • Floor 2</span>
+      <span class="brand-name">Aero-Dock: Trajectory</span>
+    </div>
+
+    <!-- HUD STATS (Visible during active flight) -->
+    <div class="nav-hud" id="nav-hud" style="display: none;">
+      <div class="hud-pill" id="hud-level-pill">
+        <span class="hud-label">CHAMBER</span>
+        <span class="hud-val" id="hud-level-num">1</span>
+      </div>
+
+      <div class="hud-pill" id="hud-score-pill">
+        <span class="hud-label">SCORE</span>
+        <span class="hud-val" id="hud-score-val">0</span>
+      </div>
+
+      <div class="hud-pill" id="hud-streak-pill">
+        <span class="hud-label">THRUST</span>
+        <span class="hud-val streak-fire" id="hud-streak-val">x1</span>
+      </div>
+
+      <div class="hud-pill hud-timer-pill" id="hud-timer-pill">
+        <span class="hud-icon">⏱️</span>
+        <span class="hud-val timer-val" id="hud-timer-val">40s</span>
+        <div class="timer-bar-track">
+          <div class="timer-bar-fill" id="timer-bar-fill"></div>
+        </div>
+      </div>
+
+      <div class="hud-pill hud-lives-pill" id="hud-lives-pill" title="Orbital Shields">
+        <span class="hud-label">SHIELDS</span>
+        <div class="lives-hearts" id="hud-lives-container">
+          <span class="life-heart active" data-life="1">🛡️</span>
+          <span class="life-heart active" data-life="2">🛡️</span>
+          <span class="life-heart active" data-life="3">🛡️</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- SYSTEM CONTROLS -->
+    <div class="nav-controls">
+      <button class="control-btn" id="btn-sound-toggle" aria-label="Toggle Sound" title="Sound On / Off">
+        <span class="sound-icon-display" id="sound-icon">🔊</span>
+      </button>
+      <button class="control-btn" id="btn-fullscreen-toggle" aria-label="Toggle Fullscreen" title="Full Screen">
+        <span class="fullscreen-icon-display" id="fullscreen-icon">⛶</span>
+      </button>
+      <button class="control-btn restart-btn" id="btn-nav-restart" aria-label="Restart Game" title="Restart / Main Menu" style="display: none;">
+        <span>🔄</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- SCREEN 1: START SCREEN -->
+  <section class="screen active" id="screen-start">
+    <div class="screen-card start-card">
+      <div class="badge-pill">Cambridge Mathematics • Measure • Floor 2</div>
+      <h1 class="game-title">Aero-Dock<br><span class="gradient-text">Trajectory Estimator</span></h1>
+      <p class="game-subtitle">Launch quantum supply capsules across planetary docks! Estimate and round telemetry measurements (m/km, kg/g, L/ml) to calculate the precise docking trajectory.</p>
+
+      <div class="visual-hero">
+        <canvas id="canvas-hero-preview" width="340" height="145"></canvas>
+      </div>
+
+      <div class="menu-btn-group">
+        <button class="game-btn btn-primary" id="btn-play">
+          <span class="btn-icon">🚀</span> Launch Mission
+        </button>
+        <button class="game-btn btn-secondary" id="btn-instructions">
+          <span class="btn-icon">💡</span> How to Play
+        </button>
+      </div>
+
+      <div class="feature-badges">
+        <span>🚀 Physics Trajectory Arcs</span>
+        <span>📐 Rounding m/km, kg & Litres</span>
+        <span>📱 Tablet Drag & Quick-Pads</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- SCREEN 2: VISUAL INSTRUCTIONS SCREEN -->
+  <section class="screen" id="screen-instructions">
+    <div class="screen-card instructions-card">
+      <div class="card-header">
+        <h2>Aero-Dock Flight Manual</h2>
+        <p class="sub-hint">Visual guide — master orbital docking in seconds!</p>
+      </div>
+
+      <div class="instruction-grid">
+        <!-- STEP 1: READ TELEMETRY -->
+        <div class="instruction-card">
+          <div class="step-badge">1. Radar Telemetry</div>
+          <div class="instruction-visual">
+            <svg viewBox="0 0 160 90" class="step-svg" aria-label="Radar Telemetry Scan">
+              <rect x="10" y="10" width="140" height="70" rx="8" fill="#090d22" stroke="#38bdf8" stroke-width="1.5"/>
+              <circle cx="80" cy="45" r="28" fill="none" stroke="rgba(56,189,248,0.2)" stroke-width="1"/>
+              <line x1="80" y1="17" x2="80" y2="73" stroke="rgba(56,189,248,0.25)" stroke-dasharray="2,2"/>
+              <line x1="52" y1="45" x2="108" y2="45" stroke="rgba(56,189,248,0.25)" stroke-dasharray="2,2"/>
+              <!-- Target Beacon -->
+              <circle cx="104" cy="32" r="6" fill="#f43f5e" stroke="#fff" stroke-width="1.5"/>
+              <circle cx="104" cy="32" r="12" fill="none" stroke="#f43f5e" opacity="0.6"/>
+              <text x="80" y="68" font-size="9" fill="#38bdf8" font-weight="900" text-anchor="middle">DISTANCE: 4.7 km</text>
+            </svg>
+          </div>
+          <h3>Scan the Target</h3>
+          <p>Read the exact sensor distance, payload mass, or fuel volume in the docking radar.</p>
+        </div>
+
+        <!-- STEP 2: ROUNDING TRAJECTORY -->
+        <div class="instruction-card">
+          <div class="step-badge">2. Round to Nearest</div>
+          <div class="instruction-visual">
+            <svg viewBox="0 0 160 90" class="step-svg" aria-label="Rounding Hill Diagram">
+              <!-- Hill Curve -->
+              <path d="M 20 68 Q 80 16 140 68" fill="none" stroke="#818cf8" stroke-width="2.5"/>
+              <circle cx="20" cy="68" r="6" fill="#0c122c" stroke="#38bdf8" stroke-width="2"/>
+              <text x="20" y="84" font-size="9" fill="#38bdf8" font-weight="900" text-anchor="middle">4 km</text>
+              <circle cx="80" cy="42" r="4" fill="#f59e0b"/>
+              <text x="80" y="32" font-size="8" fill="#f59e0b" font-weight="bold" text-anchor="middle">4.5 km (Halfway)</text>
+              <circle cx="140" cy="68" r="6" fill="#0c122c" stroke="#10b981" stroke-width="2"/>
+              <text x="140" y="84" font-size="9" fill="#10b981" font-weight="900" text-anchor="middle">5 km</text>
+              <!-- Rolling Rocket -->
+              <circle cx="108" cy="50" r="8" fill="#ec4899" stroke="#fff" stroke-width="1.5"/>
+              <text x="108" y="53" font-size="8" fill="#fff" font-weight="900" text-anchor="middle">4.7</text>
+              <path d="M 118 54 Q 128 58 134 64" fill="none" stroke="#10b981" stroke-width="2"/>
+              <text x="110" y="24" font-size="8.5" fill="#10b981" font-weight="900">4.7 ≥ 4.5 → 5 km!</text>
+            </svg>
+          </div>
+          <h3>Check the Benchmark</h3>
+          <p>Decide whether the measurement rounds <strong>DOWN</strong> or <strong>UP</strong> to the nearest whole unit.</p>
+        </div>
+
+        <!-- STEP 3: DUAL CONTROLS -->
+        <div class="instruction-card">
+          <div class="step-badge">3. Launch Thruster</div>
+          <div class="instruction-visual">
+            <svg viewBox="0 0 160 90" class="step-svg" aria-label="Dual Touch and Mouse Controls">
+              <!-- Quick snap buttons -->
+              <rect x="16" y="16" width="38" height="26" rx="6" fill="#151e3f" stroke="#334155" stroke-width="1.5"/>
+              <text x="35" y="33" font-size="10" fill="#94a3b8" font-weight="bold" text-anchor="middle">4 km</text>
+              <rect x="61" y="14" width="42" height="30" rx="6" fill="#065f46" stroke="#10b981" stroke-width="2.5"/>
+              <text x="82" y="33" font-size="11" fill="#34d399" font-weight="900" text-anchor="middle">5 km</text>
+              <!-- Touch highlight -->
+              <circle cx="82" cy="29" r="14" fill="#34d399" opacity="0.3"/>
+              <rect x="110" y="16" width="38" height="26" rx="6" fill="#151e3f" stroke="#334155" stroke-width="1.5"/>
+              <text x="129" y="33" font-size="10" fill="#94a3b8" font-weight="bold" text-anchor="middle">6 km</text>
+              <!-- Arc slider -->
+              <rect x="25" y="60" width="110" height="6" rx="3" fill="#334155"/>
+              <circle cx="80" cy="63" r="9" fill="#10b981" stroke="#fff" stroke-width="2"/>
+              <text x="80" y="82" font-size="8" fill="#38bdf8" font-weight="bold" text-anchor="middle">Tap Pad OR Pull Thruster</text>
+            </svg>
+          </div>
+          <h3>Tablet & Mouse Ready</h3>
+          <p><strong>Tap</strong> a Quick-Pad or <strong>drag</strong> the Thruster Slider to lock your trajectory, then hit <strong>FIRE</strong>!</p>
+        </div>
+
+        <!-- STEP 4: SHIELDS & STARS -->
+        <div class="instruction-card">
+          <div class="step-badge">4. Docking Streak</div>
+          <div class="instruction-visual">
+            <svg viewBox="0 0 160 90" class="step-svg" aria-label="Orbital Shields and Stars">
+              <text x="80" y="26" font-size="18" fill="#fbbf24" font-weight="900" text-anchor="middle">🔥 x3 OVERDRIVE</text>
+              <text x="40" y="56" font-size="24" text-anchor="middle">⭐</text>
+              <text x="80" y="52" font-size="30" text-anchor="middle">⭐</text>
+              <text x="120" y="56" font-size="24" text-anchor="middle">⭐</text>
+              <text x="80" y="80" font-size="9" fill="#38bdf8" font-weight="bold" text-anchor="middle">Clean dockings unlock 3 Stars!</text>
+            </svg>
+          </div>
+          <h3>Protect Shields</h3>
+          <p>You have <strong>3 Shields</strong>. Avoid undershooting or overshooting to maximize your rating!</p>
+        </div>
+      </div>
+
+      <div class="instruction-actions">
+        <button class="game-btn btn-primary" id="btn-instruction-play">
+          <span class="btn-icon">🚀</span> Start Flight Mission
+        </button>
+        <button class="game-btn btn-secondary" id="btn-instruction-back">
+          Back
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <!-- SCREEN 3: ACTIVE GAMEPLAY SCREEN -->
+  <section class="screen" id="screen-game">
+    <div class="game-layout">
+
+      <!-- TOP MISSION BANNER -->
+      <div class="mission-banner" id="mission-banner">
+        <div class="mission-tag">MISSION TELEMETRY</div>
+        <div class="mission-text" id="mission-text">Estimate & Round Distance to Nearest km</div>
+      </div>
+
+      <!-- MAIN FLIGHT & TRAJECTORY CANVAS -->
+      <div class="flight-canvas-wrapper" id="flight-wrapper">
+        <canvas id="canvas-flight-stage" width="760" height="340"></canvas>
+
+        <!-- FLOATING FEEDBACK -->
+        <div class="floating-feedback" id="floating-feedback" style="display: none;"></div>
+      </div>
+
+      <!-- LOWER CONTROL DECK: QUICK-THRUST PADS & SLIDER -->
+      <div class="control-deck" id="control-deck">
+        
+        <!-- QUICK-SNAP ENERGY PODS (Touch friendly for iPad/Tablet) -->
+        <div class="quick-pads-container" id="quick-pads-container">
+          <!-- Dynamically populated buttons e.g. [4 km] [5 km] [6 km] -->
+        </div>
+
+        <!-- THRUSTER SLIDER & FIRE TRIGGER -->
+        <div class="thruster-apparatus" id="thruster-apparatus">
+          <div class="thruster-header">
+            <span class="thruster-title">QUANTUM THRUST CALIBRATOR</span>
+            <span class="thruster-live-value" id="thruster-live-value">--</span>
+          </div>
+
+          <div class="thruster-track-wrap" id="thruster-track-wrap">
+            <div class="thruster-track-bg"></div>
+            <div class="thruster-track-active" id="thruster-track-active"></div>
+            <div class="thruster-thumb" id="thruster-thumb">
+              <div class="thumb-core"></div>
+            </div>
+          </div>
+
+          <div class="thruster-actions">
+            <button class="game-btn btn-launch-capsule" id="btn-launch-capsule">
+              <span class="btn-icon">🔥</span> FIRE CAPSULE
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
+  <!-- POPUP: CHAMBER CLEARED OVERLAY -->
+  <div class="modal-overlay" id="overlay-level-clear" style="display: none;">
+    <div class="modal-card level-clear-card">
+      <div class="level-badge" id="level-clear-title">CHAMBER 1 DOCKED!</div>
+      <div class="level-clear-icon">🛸</div>
+      <p class="level-clear-desc" id="level-clear-desc">Supply pods docked with 100% precision. Advancing to higher planetary orbit...</p>
+      <div class="level-stats-row">
+        <div class="stat-box">
+          <span class="stat-label">Chamber Score</span>
+          <span class="stat-num" id="level-clear-score">+600</span>
+        </div>
+        <div class="stat-box">
+          <span class="stat-label">Docking Accuracy</span>
+          <span class="stat-num" id="level-clear-accuracy">100%</span>
+        </div>
+      </div>
+      <button class="game-btn btn-primary" id="btn-next-level">
+        Proceed to Next Orbit ⚡
+      </button>
+    </div>
+  </div>
+
+  <!-- SCREEN 4: END SCREEN (REQUIRED TRY AGAIN & SUBMIT) -->
+  <section class="screen" id="screen-end">
+    <div class="screen-card end-card">
+      <div class="badge-pill" id="end-status-pill">MISSION CONCLUDED</div>
+      <h1 class="end-title" id="end-title">Aero-Docking Complete!</h1>
+      <p class="end-subtitle" id="end-subtitle">Review your flight trajectory precision and pilot rating.</p>
+
+      <!-- STAR RATING (0 to 3) -->
+      <div class="stars-display-container">
+        <div class="star-slot" id="star-slot-1"><span class="star-icon">⭐</span></div>
+        <div class="star-slot" id="star-slot-2"><span class="star-icon">⭐</span></div>
+        <div class="star-slot" id="star-slot-3"><span class="star-icon">⭐</span></div>
+      </div>
+      <div class="stars-label" id="stars-label">3 STARS: CHIEF NAVIGATOR</div>
+
+      <!-- METRICS GRID -->
+      <div class="end-metrics-grid">
+        <div class="metric-card">
+          <span class="metric-icon">🏆</span>
+          <span class="metric-label">FINAL SCORE</span>
+          <span class="metric-value" id="end-metric-score">0</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-icon">🎯</span>
+          <span class="metric-label">ACCURACY</span>
+          <span class="metric-value" id="end-metric-accuracy">0%</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-icon">🔥</span>
+          <span class="metric-label">MAX THRUST STREAK</span>
+          <span class="metric-value" id="end-metric-streak">0</span>
+        </div>
+        <div class="metric-card">
+          <span class="metric-icon">🛡️</span>
+          <span class="metric-label">SHIELDS REMAINING</span>
+          <span class="metric-value" id="end-metric-lives">3/3</span>
+        </div>
+      </div>
+
+      <!-- ACTION BUTTONS: TRY AGAIN & SUBMIT -->
+      <div class="menu-btn-group end-actions">
+        <button class="game-btn btn-secondary" id="btn-try-again">
+          <span class="btn-icon">🔄</span> Try Again
+        </button>
+        <button class="game-btn btn-primary" id="btn-submit">
+          <span class="btn-icon">🚀</span> Submit Results
+        </button>
+      </div>
+
+    </div>
+  </section>
+
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
